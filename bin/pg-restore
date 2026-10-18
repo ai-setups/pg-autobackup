@@ -1,0 +1,31 @@
+#!/bin/sh
+# pg-restore — Restores the data directory from the backup repository, either to the
+# end of the archived WAL or to a point in time, into an empty data volume. Run it in a
+# one-off container of the database service after removing the old volume:
+#
+#   docker compose down
+#   docker volume rm <data volume>
+#   docker compose run --rm --no-deps --entrypoint pg-restore <db> latest
+#   docker compose run --rm --no-deps --entrypoint pg-restore <db> "2026-10-18 12:00:00+00"
+#   docker compose up -d
+#
+# On start the server replays WAL up to the target and then accepts writes.
+
+set -e
+
+target=${1:?usage: pg-restore latest | "<timestamp with time zone>"}
+if [ "$target" = latest ]; then
+    set --
+else
+    set -- --type=time "--target=$target" --target-action=promote
+fi
+
+if [ -n "$(ls -A "$PGDATA" 2>/dev/null)" ]; then
+    echo "pg-restore: $PGDATA is not empty; remove the data volume first" >&2
+    exit 1
+fi
+# A new volume is created root-owned; the server and pgBackRest run as postgres.
+mkdir -p "$PGDATA"
+chown postgres:postgres "$PGDATA"
+chmod 700 "$PGDATA"
+exec gosu postgres pgbackrest --stanza=main "$@" restore
