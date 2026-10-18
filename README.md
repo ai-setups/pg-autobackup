@@ -73,7 +73,7 @@ docker compose run --rm --no-deps --entrypoint pg-restore db "2026-10-18 12:00:0
 docker compose up -d
 ```
 
-启动后数据库自动回放 WAL 到目标位置再开始接受写入。数据卷不为空时 `pg-restore` 拒绝执行。
+`pg-restore` 的参数是一个时刻：`latest` 表示备份中的最新状态，或保留期内一个带时区的时间。只需给出时刻，pgBackRest 自动选出该时刻之前最近的一次全量备份；数据库启动后回放 WAL 到该时刻，再开始接受写入。数据卷不为空时 `pg-restore` 拒绝执行。
 
 恢复到时间点后，数据库进入新的时间线；之后再执行 `pg-restore ... latest` 得到的是新时间线上的最新状态。
 
