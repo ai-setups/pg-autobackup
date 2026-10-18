@@ -1,0 +1,25 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: destroyed-symlinks
+      - id: fix-byte-order-marker
+      - id: check-symlinks
+      - id: check-yaml
+      - id: check-json
+
+  - repo: https://github.com/1996fanrui/agent-guardrails
+    rev: 8de70858ad61a9d14527c0489eb154d785946efa
+    hooks:
+      - id: lint-file-line-count
+        exclude: '(^|/)(generated|gen|genfiles|proto_gen|pb_gen|vendor|third_party)(/|$)|(^|/)(uv\.lock|poetry\.lock|Pipfile\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$'
+      - id: lint-no-ignored-files
+      - id: lint-shell-portability
