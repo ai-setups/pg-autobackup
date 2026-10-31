@@ -10,7 +10,7 @@ ghcr.io/ai-setups/pg-autobackup:17
 
 | 项目 | 取值 |
 |---|---|
-| WAL 归档 | 每写满一个 16 MB 的 WAL 段，或有写入后最多 30 分钟（`archive_timeout=1800`），上传一个对象 |
+| WAL 归档 | 每写满一个 16 MB 的 WAL 段，或有写入后最多 `PG_ARCHIVE_TIMEOUT` 秒（默认 `1800`，即 30 分钟），上传一个对象 |
 | 全量备份 | 仓库为空时立即一次；每次启动后 `BACKUP_AFTER_START_SECONDS`（默认 600 秒）一次；每天 `BACKUP_CRON`（默认 `0 19 * * *`，UTC）一次 |
 | 保留 | 7 天，过期的全量和 WAL 在每次备份后自动删除 |
 | 压缩 | zstd；小文件合并上传 |
@@ -45,11 +45,12 @@ volumes:
 | `PGBACKREST_REPO1_S3_BUCKET` | 是 | 私有 bucket |
 | `PGBACKREST_REPO1_PATH` | 是 | 备份仓库路径，每个数据库实例独占一个 |
 | `PGBACKREST_REPO1_S3_KEY`、`PGBACKREST_REPO1_S3_KEY_SECRET` | 是 | 对该 bucket 有读写权限的 Access Key |
+| `PG_ARCHIVE_TIMEOUT` | 否 | 有写入后最多多少秒归档一次 WAL，也是整机丢失时最多丢失的数据量；默认 `1800`，取值无效时数据库拒绝启动 |
 | `BACKUP_AFTER_START_SECONDS` | 否 | 启动后多久做一次全量，默认 `600` |
 | `BACKUP_CRON` | 否 | 定时全量的 crontab 表达式（UTC），默认 `0 19 * * *` |
 | `PGBACKREST_REPO1_RETENTION_FULL` | 否 | 保留天数，默认 `7` |
 
-不要覆盖容器的 `command`：WAL 归档参数就在默认命令里。
+不要覆盖容器的 `command`：WAL 归档参数就在默认命令里。调整归档间隔用 `PG_ARCHIVE_TIMEOUT`。
 
 ## 三种启动场景
 
@@ -85,4 +86,4 @@ docker compose up -d
 bash tests/smoke.sh
 ```
 
-冒烟测试用本地目录代替对象存储，验证首次备份、启动后备份、WAL 归档、拒绝向非空卷恢复、恢复到最新和按时间点恢复。推送到任意分支会发布 `sha-<commit>` 标签，合入 `main` 后更新 `17` 标签。
+冒烟测试用本地目录代替对象存储，验证首次备份、启动后备份、WAL 归档、归档间隔的默认值与环境变量、拒绝向非空卷恢复、恢复到最新和按时间点恢复。推送到任意分支会发布 `sha-<commit>` 标签，合入 `main` 后更新 `17` 标签。

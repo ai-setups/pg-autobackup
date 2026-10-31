@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # smoke.sh — Builds the image and checks the whole backup cycle against a local
-# repository: initial full backup, the full backup after start, WAL archiving, refusing to
-# restore into a used volume, restore to the end of the archive (every row is back),
-# point-in-time restore (a row written after the target is gone) and refusing to start a
-# new instance on an existing repository.
+# repository: initial full backup, the full backup after start, WAL archiving, the archive
+# timeout (default, PG_ARCHIVE_TIMEOUT, invalid value), refusing to restore into a used
+# volume, restore to the end of the archive (every row is back), point-in-time restore (a
+# row written after the target is gone) and refusing to start a new instance on an
+# existing repository.
 #
 # Usage: bash tests/smoke.sh
 
@@ -43,8 +44,9 @@ wait_until() {
     exit 1
 }
 
+# Extra arguments go to docker run, for options a single start needs.
 start() {
-    docker run -d --name "$name" "${env[@]}" "${mounts[@]}" "$image" > /dev/null
+    docker run -d --name "$name" "${env[@]}" "$@" "${mounts[@]}" "$image" > /dev/null
     wait_until "docker exec $name pg_isready -q -h 127.0.0.1 -U app"
 }
 
@@ -74,7 +76,17 @@ expect() {
 docker build -q -t "$image" "$(dirname "$0")/.." > /dev/null
 docker run --rm -v "$repo:/repo" --entrypoint chown "$image" postgres:postgres /repo
 
+expect_archive_timeout() {
+    local actual
+    actual=$(psql "SHOW archive_timeout")
+    if [[ "$actual" != "$1" ]]; then
+        echo "expected archive_timeout '$1', got '$actual'" >&2
+        exit 1
+    fi
+}
+
 start
+expect_archive_timeout 30min
 # The first backup on an empty repository, then the one BACKUP_AFTER_START_SECONDS later.
 wait_until '[ "$(backups)" -ge 2 ]'
 
@@ -111,6 +123,18 @@ fi
 psql "SELECT pg_wal_replay_resume()" > /dev/null
 wait_until "docker exec $name gosu postgres pgbackrest --stanza=main check"
 expect before
+
+docker rm -f "$name" > /dev/null
+start -e PG_ARCHIVE_TIMEOUT=120
+expect_archive_timeout 2min
+
+docker rm -f "$name" > /dev/null
+docker run -d --name "$name" "${env[@]}" -e PG_ARCHIVE_TIMEOUT=invalid "${mounts[@]}" "$image" > /dev/null
+wait_until "[ \"\$(docker inspect -f '{{.State.Running}}' $name)\" = false ]"
+if ! docker logs "$name" 2>&1 | grep -q 'invalid value for parameter "archive_timeout"'; then
+    echo "an invalid PG_ARCHIVE_TIMEOUT must stop postgres at startup" >&2
+    exit 1
+fi
 
 # A freshly initialised instance must not take over another instance's repository.
 docker rm -f "$name" > /dev/null
