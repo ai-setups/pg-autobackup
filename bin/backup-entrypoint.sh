@@ -20,5 +20,8 @@ if [ "$1" = postgres ]; then
     # The subshell exits at once, so tini adopts the scheduler; the postmaster that
     # replaces this process must never see it as an unknown child.
     (backup-scheduler.sh &)
+    # A command-line option outranks every other configuration source, so the variable
+    # has to arrive here; postgres itself rejects an invalid value at startup.
+    set -- "$@" -c "archive_timeout=$PG_ARCHIVE_TIMEOUT"
 fi
 exec docker-entrypoint.sh "$@"
